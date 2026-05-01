@@ -1,0 +1,965 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<title>Terrain Generator</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700&family=Syne:wght@400;700;800&display=swap');
+
+  :root {
+    --bg: #0e0f14;
+    --panel: #15171f;
+    --panel2: #1c1f2b;
+    --border: #2a2d3e;
+    --accent: #4fffb0;
+    --accent2: #7c6fff;
+    --accent3: #ff6f6f;
+    --text: #e2e4f0;
+    --muted: #6b6f8a;
+    --tile: 16px;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 13px;
+    height: 100vh;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+
+  header {
+    padding: 12px 20px;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    background: var(--panel);
+    flex-shrink: 0;
+  }
+
+  header h1 {
+    font-family: 'Syne', sans-serif;
+    font-size: 18px;
+    font-weight: 800;
+    letter-spacing: -0.5px;
+    color: var(--accent);
+  }
+
+  header .sub { color: var(--muted); font-size: 11px; }
+
+  .tab-bar {
+    display: flex;
+    gap: 4px;
+    margin-left: auto;
+  }
+
+  .tab {
+    padding: 5px 14px;
+    border-radius: 6px;
+    cursor: pointer;
+    color: var(--muted);
+    transition: all 0.15s;
+    font-size: 12px;
+    background: transparent;
+    border: 1px solid transparent;
+  }
+
+  .tab.active {
+    color: var(--accent);
+    border-color: var(--accent);
+    background: rgba(79,255,176,0.07);
+  }
+
+  .main {
+    display: flex;
+    flex: 1;
+    overflow: hidden;
+  }
+
+  /* ── LEFT PANEL ── */
+  .sidebar {
+    width: 280px;
+    flex-shrink: 0;
+    background: var(--panel);
+    border-right: 1px solid var(--border);
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+  }
+
+  .section {
+    border-bottom: 1px solid var(--border);
+    padding: 14px 16px;
+  }
+
+  .section-title {
+    font-family: 'Syne', sans-serif;
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin-bottom: 12px;
+  }
+
+  .field { margin-bottom: 10px; }
+
+  .field label {
+    display: flex;
+    justify-content: space-between;
+    margin-bottom: 4px;
+    color: var(--muted);
+    font-size: 11px;
+  }
+
+  .field label span { color: var(--accent); font-weight: 600; }
+
+  input[type=range] {
+    width: 100%;
+    height: 4px;
+    appearance: none;
+    background: var(--border);
+    border-radius: 2px;
+    outline: none;
+    cursor: pointer;
+  }
+
+  input[type=range]::-webkit-slider-thumb {
+    appearance: none;
+    width: 14px;
+    height: 14px;
+    border-radius: 50%;
+    background: var(--accent);
+    box-shadow: 0 0 8px rgba(79,255,176,0.5);
+  }
+
+  .toggle-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 8px;
+  }
+
+  .toggle-label { color: var(--muted); font-size: 11px; }
+
+  .toggle {
+    position: relative;
+    width: 36px;
+    height: 20px;
+  }
+
+  .toggle input { display: none; }
+
+  .toggle .slider {
+    position: absolute;
+    inset: 0;
+    background: var(--border);
+    border-radius: 10px;
+    cursor: pointer;
+    transition: 0.2s;
+  }
+
+  .toggle .slider::after {
+    content: '';
+    position: absolute;
+    width: 14px;
+    height: 14px;
+    left: 3px;
+    top: 3px;
+    background: var(--muted);
+    border-radius: 50%;
+    transition: 0.2s;
+  }
+
+  .toggle input:checked + .slider { background: rgba(79,255,176,0.3); }
+  .toggle input:checked + .slider::after { transform: translateX(16px); background: var(--accent); }
+
+  .seed-row {
+    display: flex;
+    gap: 6px;
+    align-items: center;
+  }
+
+  .seed-row input[type=number] {
+    flex: 1;
+    background: var(--panel2);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    color: var(--text);
+    padding: 5px 8px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 12px;
+    outline: none;
+  }
+
+  .seed-row input[type=number]:focus { border-color: var(--accent); }
+
+  .btn-sm {
+    background: var(--panel2);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    color: var(--muted);
+    padding: 5px 10px;
+    cursor: pointer;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 12px;
+    transition: all 0.15s;
+    white-space: nowrap;
+  }
+
+  .btn-sm:hover { border-color: var(--accent2); color: var(--accent2); }
+
+  .biome-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 6px;
+  }
+
+  .biome-btn {
+    padding: 6px 8px;
+    border-radius: 6px;
+    border: 1px solid var(--border);
+    background: var(--panel2);
+    color: var(--muted);
+    cursor: pointer;
+    text-align: center;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    transition: all 0.15s;
+  }
+
+  .biome-btn.active {
+    border-color: var(--accent2);
+    color: var(--accent2);
+    background: rgba(124,111,255,0.1);
+  }
+
+  /* PAINT PALETTE */
+  .paint-colors {
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+    margin-top: 4px;
+  }
+
+  .paint-swatch {
+    width: 28px;
+    height: 28px;
+    border-radius: 6px;
+    cursor: pointer;
+    border: 2px solid transparent;
+    transition: 0.15s;
+  }
+
+  .paint-swatch.active { border-color: white; transform: scale(1.15); }
+
+  .paint-info {
+    margin-top: 8px;
+    font-size: 10px;
+    color: var(--muted);
+    line-height: 1.6;
+  }
+
+  /* GENERATE BTN */
+  .gen-btn {
+    margin: 14px 16px;
+    padding: 10px;
+    background: var(--accent);
+    color: #0e0f14;
+    border: none;
+    border-radius: 8px;
+    font-family: 'Syne', sans-serif;
+    font-size: 14px;
+    font-weight: 800;
+    cursor: pointer;
+    letter-spacing: 1px;
+    transition: all 0.15s;
+    text-transform: uppercase;
+  }
+
+  .gen-btn:hover { background: #7affc8; box-shadow: 0 0 20px rgba(79,255,176,0.3); }
+  .gen-btn:active { transform: scale(0.98); }
+
+  /* ── CENTER ── */
+  .center {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    position: relative;
+  }
+
+  /* VIEW TABS */
+  .view-switcher {
+    display: flex;
+    gap: 0;
+    border-bottom: 1px solid var(--border);
+    background: var(--panel);
+    flex-shrink: 0;
+  }
+
+  .view-tab {
+    padding: 8px 18px;
+    cursor: pointer;
+    color: var(--muted);
+    font-size: 11px;
+    border-bottom: 2px solid transparent;
+    transition: 0.15s;
+  }
+
+  .view-tab.active { color: var(--accent); border-bottom-color: var(--accent); }
+
+  /* PREVIEW CANVAS */
+  .preview-wrap {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+    background: repeating-linear-gradient(
+      45deg,
+      var(--bg),
+      var(--bg) 10px,
+      #111318 10px,
+      #111318 20px
+    );
+  }
+
+  canvas { image-rendering: pixelated; cursor: crosshair; }
+
+  .paint-cursor-hint {
+    position: absolute;
+    bottom: 12px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: rgba(0,0,0,0.7);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 6px 14px;
+    font-size: 11px;
+    color: var(--muted);
+    pointer-events: none;
+    display: none;
+  }
+
+  /* OUTPUT PANEL */
+  .output-area {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+
+  .output-toolbar {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 14px;
+    border-bottom: 1px solid var(--border);
+    background: var(--panel);
+    flex-shrink: 0;
+  }
+
+  .output-stat {
+    font-size: 11px;
+    color: var(--muted);
+    margin-right: auto;
+  }
+
+  .output-stat span { color: var(--accent); }
+
+  textarea {
+    flex: 1;
+    background: #0a0b10;
+    color: #9effd4;
+    border: none;
+    padding: 14px 16px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    resize: none;
+    outline: none;
+    line-height: 1.7;
+    overflow-y: auto;
+  }
+
+  /* STATUS BAR */
+  .statusbar {
+    padding: 4px 16px;
+    background: var(--panel);
+    border-top: 1px solid var(--border);
+    font-size: 10px;
+    color: var(--muted);
+    display: flex;
+    gap: 20px;
+    flex-shrink: 0;
+  }
+
+  .statusbar .ok { color: var(--accent); }
+  .statusbar .warn { color: #ffcc55; }
+
+  /* HIDDEN */
+  .view-content { display: none; width: 100%; height: 100%; flex-direction: column; }
+  .view-content.active { display: flex; }
+
+  /* scrollbar */
+  ::-webkit-scrollbar { width: 6px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+
+  .progress-bar-wrap {
+    position: absolute;
+    inset: 0;
+    background: rgba(14,15,20,0.85);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 14px;
+    z-index: 10;
+    display: none;
+  }
+
+  .progress-bar-wrap.visible { display: flex; }
+
+  .progress-label { font-family: 'Syne', sans-serif; font-size: 14px; color: var(--accent); }
+
+  .progress-track {
+    width: 260px;
+    height: 6px;
+    background: var(--border);
+    border-radius: 3px;
+    overflow: hidden;
+  }
+
+  .progress-fill {
+    height: 100%;
+    background: var(--accent);
+    border-radius: 3px;
+    width: 0%;
+    transition: width 0.1s;
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>⛰ TERRAIN GEN</h1>
+  <span class="sub">Vector-based · Command Output</span>
+</header>
+
+<div class="main">
+
+  <!-- SIDEBAR -->
+  <div class="sidebar">
+
+    <div class="section">
+      <div class="section-title">Grid</div>
+
+      <div class="field">
+        <label>Width (X tiles) <span id="lbl-w">16</span></label>
+        <input type="range" id="gridW" min="4" max="48" value="16">
+      </div>
+      <div class="field">
+        <label>Depth (Z tiles) <span id="lbl-d">16</span></label>
+        <input type="range" id="gridD" min="4" max="48" value="16">
+      </div>
+      <div class="field">
+        <label>Tile Size <span id="lbl-ts">4</span></label>
+        <input type="range" id="tileSize" min="2" max="16" value="4" step="1">
+      </div>
+      <div class="field">
+        <label>World ID <span id="lbl-wid">1</span></label>
+        <input type="range" id="worldId" min="1" max="10" value="1" step="1">
+      </div>
+      <div class="seed-row">
+        <input type="number" id="seed" value="42" placeholder="Seed">
+        <button class="btn-sm" onclick="randomSeed()">🎲 Rand</button>
+      </div>
+    </div>
+
+    <div class="section">
+      <div class="section-title">Height & Noise</div>
+      <div class="field">
+        <label>Max Height <span id="lbl-mh">12</span></label>
+        <input type="range" id="maxHeight" min="1" max="64" value="12">
+      </div>
+      <div class="field">
+        <label>Noise Scale <span id="lbl-ns">0.15</span></label>
+        <input type="range" id="noiseScale" min="2" max="40" value="15">
+      </div>
+      <div class="field">
+        <label>Octaves <span id="lbl-oc">4</span></label>
+        <input type="range" id="octaves" min="1" max="8" value="4">
+      </div>
+      <div class="field">
+        <label>Persistence <span id="lbl-pe">0.5</span></label>
+        <input type="range" id="persistence" min="10" max="90" value="50">
+      </div>
+      <div class="toggle-row">
+        <span class="toggle-label">Mountains</span>
+        <label class="toggle"><input type="checkbox" id="mountains" checked><span class="slider"></span></label>
+      </div>
+      <div class="toggle-row">
+        <span class="toggle-label">Flatten Water</span>
+        <label class="toggle"><input type="checkbox" id="flatWater" checked><span class="slider"></span></label>
+      </div>
+      <div class="field">
+        <label>Water Level <span id="lbl-wl">0.25</span></label>
+        <input type="range" id="waterLevel" min="0" max="60" value="25">
+      </div>
+    </div>
+
+    <div class="section">
+      <div class="section-title">Biome Preset</div>
+      <div class="biome-grid">
+        <div class="biome-btn active" onclick="setBiome(this,'plains')">🌿 Plains</div>
+        <div class="biome-btn" onclick="setBiome(this,'mountains')">🏔 Mountains</div>
+        <div class="biome-btn" onclick="setBiome(this,'desert')">🏜 Desert</div>
+        <div class="biome-btn" onclick="setBiome(this,'island')">🏝 Island</div>
+        <div class="biome-btn" onclick="setBiome(this,'canyon')">🪨 Canyon</div>
+        <div class="biome-btn" onclick="setBiome(this,'custom')">✏️ Custom</div>
+      </div>
+    </div>
+
+    <div class="section">
+      <div class="section-title">Terrain Paint</div>
+      <div class="paint-info">Click tiles on the preview to paint zones. Selected paint overrides material & color for those tiles.</div>
+      <div class="paint-colors" id="paintSwatches"></div>
+      <div style="margin-top:8px; display:flex; gap:6px;">
+        <button class="btn-sm" onclick="clearPaint()">🗑 Clear Paint</button>
+        <button class="btn-sm" id="paintToggle" onclick="togglePaintMode()">🖌 Paint OFF</button>
+      </div>
+    </div>
+
+    <button class="gen-btn" onclick="generate()">▶ Generate Commands</button>
+  </div>
+
+  <!-- CENTER -->
+  <div class="center">
+    <div class="view-switcher">
+      <div class="view-tab active" onclick="switchView('preview',this)">Preview</div>
+      <div class="view-tab" onclick="switchView('output',this)">Output</div>
+    </div>
+
+    <!-- PREVIEW -->
+    <div class="view-content active" id="view-preview">
+      <div class="preview-wrap" id="previewWrap">
+        <canvas id="previewCanvas"></canvas>
+      </div>
+      <div class="paint-cursor-hint" id="paintHint">🖌 Paint Mode — Click or drag to paint tiles</div>
+    </div>
+
+    <!-- OUTPUT -->
+    <div class="view-content" id="view-output">
+      <div class="output-area">
+        <div class="output-toolbar">
+          <span class="output-stat">Commands: <span id="cmdCount">0</span> · Parts: <span id="partCount">0</span></span>
+          <button class="btn-sm" onclick="copyOutput()">📋 Copy</button>
+          <button class="btn-sm" onclick="downloadOutput()">💾 Save .txt</button>
+        </div>
+        <textarea id="outputBox" readonly placeholder="← Generate commands first..."></textarea>
+      </div>
+    </div>
+
+    <!-- PROGRESS -->
+    <div class="progress-bar-wrap" id="progressWrap">
+      <div class="progress-label" id="progressLabel">Generating...</div>
+      <div class="progress-track"><div class="progress-fill" id="progressFill"></div></div>
+    </div>
+  </div>
+</div>
+
+<div class="statusbar">
+  <span id="statusMsg" class="ok">Ready</span>
+  <span id="statusTiles"></span>
+  <span id="statusPaint"></span>
+</div>
+
+<script>
+// ─────────── PERLIN NOISE (pure JS) ───────────
+const permutation = [];
+function initNoise(seed){
+  const r = lcg(seed);
+  const p = Array.from({length:256},(_,i)=>i);
+  for(let i=255;i>0;i--){const j=Math.floor(r()*( i+1));[p[i],p[j]]=[p[j],p[i]];}
+  permutation.length=0;
+  for(let i=0;i<512;i++) permutation[i]=p[i&255];
+}
+function lcg(seed){let s=seed|0;return()=>{s=(1664525*s+1013904223)&0xffffffff;return(s>>>0)/0xffffffff;};}
+function fade(t){return t*t*t*(t*(t*6-15)+10);}
+function lerp(a,b,t){return a+t*(b-a);}
+function grad(h,x,y){h&=3;const u=h<2?x:y,v=h<2?y:x;return((h&1)?-u:u)+((h&2)?-v:v);}
+function perlin2(x,y){
+  const X=Math.floor(x)&255,Y=Math.floor(y)&255;
+  const xf=x-Math.floor(x),yf=y-Math.floor(y);
+  const u=fade(xf),v=fade(yf);
+  const aa=permutation[permutation[X]+Y],ab=permutation[permutation[X]+Y+1];
+  const ba=permutation[permutation[X+1]+Y],bb=permutation[permutation[X+1]+Y+1];
+  return lerp(lerp(grad(aa,xf,yf),grad(ba,xf-1,yf),u),lerp(grad(ab,xf,yf-1),grad(bb,xf-1,yf-1),u),v);
+}
+function octaveNoise(x,y,octs,pers){
+  let val=0,amp=1,freq=1,max=0;
+  for(let i=0;i<octs;i++){val+=perlin2(x*freq,y*freq)*amp;max+=amp;amp*=pers;freq*=2;}
+  return val/max;
+}
+
+// ─────────── PAINT COLORS ───────────
+const PAINTS = [
+  {name:'Grass',    r:80,  g:160, b:60,  mat:'grass'},
+  {name:'Snow',     r:220, g:235, b:255, mat:'snow'},
+  {name:'Sand',     r:210, g:185, b:120, mat:'sand'},
+  {name:'Rock',     r:130, g:120, b:110, mat:'rock'},
+  {name:'Water',    r:40,  g:120, b:200, mat:'water'},
+  {name:'Lava',     r:220, g:80,  b:20,  mat:'lava'},
+  {name:'Mud',      r:100, g:70,  b:50,  mat:'mud'},
+  {name:'Ice',      r:160, g:215, b:240, mat:'ice'},
+];
+
+// Full mat name lookup including paint mats
+const PAINT_MAT_NAMES = {
+  grass: 'RBLX/Grass',
+  snow:  'RBLX/Snow',
+  sand:  'RBLX/Sand',
+  rock:  'BRM5/rock_cliff',
+  water: 'RBLX/Water',
+  lava:  'RBLX/CrackedLava',
+  mud:   'BRM5/mud_tropical',
+  ice:   'RBLX/Ice',
+};
+
+let activePaint = 0;
+let paintMode = false;
+let paintMap = {}; // key: "x,z" => paint index
+
+function initSwatches(){
+  const wrap = document.getElementById('paintSwatches');
+  wrap.innerHTML = '';
+  PAINTS.forEach((p,i)=>{
+    const s = document.createElement('div');
+    s.className = 'paint-swatch' + (i===0?' active':'');
+    s.style.background = `rgb(${p.r},${p.g},${p.b})`;
+    s.title = p.name;
+    s.onclick = ()=>{ activePaint=i; document.querySelectorAll('.paint-swatch').forEach((x,j)=>x.classList.toggle('active',j===i)); };
+    wrap.appendChild(s);
+  });
+}
+
+function togglePaintMode(){
+  paintMode=!paintMode;
+  document.getElementById('paintToggle').textContent = paintMode ? '🖌 Paint ON' : '🖌 Paint OFF';
+  document.getElementById('paintHint').style.display = paintMode ? 'block' : 'none';
+  drawPreview();
+}
+
+function clearPaint(){
+  paintMap={};
+  drawPreview();
+  document.getElementById('statusPaint').textContent = '';
+}
+
+// ─────────── SLIDER WIRING ───────────
+function wire(id, label, transform){
+  const el = document.getElementById(id);
+  const lbl = document.getElementById(label);
+  el.addEventListener('input', ()=>{ lbl.textContent = transform ? transform(el.value) : el.value; drawPreview(); });
+  if(lbl) lbl.textContent = transform ? transform(el.value) : el.value;
+}
+wire('gridW','lbl-w');
+wire('gridD','lbl-d');
+wire('tileSize','lbl-ts');
+wire('worldId','lbl-wid');
+wire('maxHeight','lbl-mh');
+wire('noiseScale','lbl-ns', v=>(v/100).toFixed(2));
+wire('octaves','lbl-oc');
+wire('persistence','lbl-pe', v=>(v/100).toFixed(2));
+wire('waterLevel','lbl-wl', v=>(v/100).toFixed(2));
+document.getElementById('mountains').addEventListener('change', drawPreview);
+document.getElementById('flatWater').addEventListener('change', drawPreview);
+document.getElementById('seed').addEventListener('input', drawPreview);
+
+function randomSeed(){
+  document.getElementById('seed').value = Math.floor(Math.random()*99999);
+  drawPreview();
+}
+
+// ─────────── BIOME PRESETS ───────────
+const BIOMES = {
+  plains:    {maxHeight:8,  noiseScale:12, octaves:3, persistence:40, mountains:false, flatWater:true,  waterLevel:20},
+  mountains: {maxHeight:40, noiseScale:18, octaves:6, persistence:55, mountains:true,  flatWater:true,  waterLevel:15},
+  desert:    {maxHeight:10, noiseScale:8,  octaves:2, persistence:35, mountains:false, flatWater:false, waterLevel:5},
+  island:    {maxHeight:20, noiseScale:20, octaves:4, persistence:50, mountains:true,  flatWater:true,  waterLevel:40},
+  canyon:    {maxHeight:30, noiseScale:10, octaves:5, persistence:65, mountains:true,  flatWater:false, waterLevel:10},
+  custom:    null,
+};
+
+function setBiome(el, key){
+  document.querySelectorAll('.biome-btn').forEach(b=>b.classList.remove('active'));
+  el.classList.add('active');
+  const b = BIOMES[key];
+  if(!b) return;
+  document.getElementById('maxHeight').value = b.maxHeight; document.getElementById('lbl-mh').textContent = b.maxHeight;
+  document.getElementById('noiseScale').value = b.noiseScale; document.getElementById('lbl-ns').textContent = (b.noiseScale/100).toFixed(2);
+  document.getElementById('octaves').value = b.octaves; document.getElementById('lbl-oc').textContent = b.octaves;
+  document.getElementById('persistence').value = b.persistence; document.getElementById('lbl-pe').textContent = (b.persistence/100).toFixed(2);
+  document.getElementById('mountains').checked = b.mountains;
+  document.getElementById('flatWater').checked = b.flatWater;
+  document.getElementById('waterLevel').value = b.waterLevel; document.getElementById('lbl-wl').textContent = (b.waterLevel/100).toFixed(2);
+  drawPreview();
+}
+
+// ─────────── HEIGHT MAP ───────────
+function getParams(){
+  return {
+    gridW: +document.getElementById('gridW').value,
+    gridD: +document.getElementById('gridD').value,
+    tileSize: +document.getElementById('tileSize').value,
+    worldId: +document.getElementById('worldId').value,
+    maxHeight: +document.getElementById('maxHeight').value,
+    noiseScale: +document.getElementById('noiseScale').value / 100,
+    octaves: +document.getElementById('octaves').value,
+    persistence: +document.getElementById('persistence').value / 100,
+    mountains: document.getElementById('mountains').checked,
+    flatWater: document.getElementById('flatWater').checked,
+    waterLevel: +document.getElementById('waterLevel').value / 100,
+    seed: +document.getElementById('seed').value || 42,
+  };
+}
+
+function buildHeightMap(p){
+  initNoise(p.seed);
+  const map = [];
+  for(let z=0;z<p.gridD;z++){
+    map[z]=[];
+    for(let x=0;x<p.gridW;x++){
+      let n = octaveNoise(x*p.noiseScale, z*p.noiseScale, p.octaves, p.persistence);
+      n = (n+1)/2; // 0..1
+      if(p.mountains) n = Math.pow(n, 0.7);
+      if(p.flatWater && n < p.waterLevel) n = p.waterLevel * 0.5;
+      map[z][x] = n;
+    }
+  }
+  return map;
+}
+
+// ─────────── TILE COLOR ───────────
+function tileColor(n, waterLevel, x, z){
+  const key = x+','+z;
+  if(paintMap[key] !== undefined){
+    const p = PAINTS[paintMap[key]];
+    return {r:p.r, g:p.g, b:p.b, mat:p.mat};
+  }
+  if(n <= waterLevel * 0.5){
+    // deep water
+    const t = n/(waterLevel*0.5);
+    return {r:Math.round(lerp(20,60,t)), g:Math.round(lerp(60,120,t)), b:Math.round(lerp(180,210,t)), mat:'water'};
+  }
+  if(n < 0.35) return {r:210,g:185,b:120, mat:'sand'};
+  if(n < 0.55) return {r:80, g:160,b:60,  mat:'grass'};
+  if(n < 0.72) return {r:100,g:80, b:60,  mat:'rock'};
+  if(n < 0.88) return {r:140,g:130,b:120, mat:'rock'};
+  return {r:230,g:240,b:255, mat:'snow'};
+}
+
+// ─────────── PREVIEW CANVAS ───────────
+let heightMapCache = null;
+
+function drawPreview(){
+  const p = getParams();
+  initNoise(p.seed);
+  const map = buildHeightMap(p);
+  heightMapCache = map;
+
+  const canvas = document.getElementById('previewCanvas');
+  const wrap = document.getElementById('previewWrap');
+  const maxW = wrap.clientWidth - 20;
+  const maxH = wrap.clientHeight - 20;
+  const cellW = Math.max(4, Math.min(Math.floor(maxW/p.gridW), Math.floor(maxH/p.gridD), 28));
+  canvas.width = cellW * p.gridW;
+  canvas.height = cellW * p.gridD;
+  const ctx = canvas.getContext('2d');
+
+  // isometric-ish shading
+  for(let z=0;z<p.gridD;z++){
+    for(let x=0;x<p.gridW;x++){
+      const n = map[z][x];
+      const c = tileColor(n, p.waterLevel, x, z);
+      // shade by slope
+      const nx = x>0 ? map[z][x-1] : n;
+      const nz = z>0 ? map[z-1][x] : n;
+      const slope = Math.max(0, Math.min(1, ((n-nx)+(n-nz))*3 + 0.5));
+      const shade = 0.7 + slope*0.5;
+      ctx.fillStyle = `rgb(${Math.min(255,c.r*shade)|0},${Math.min(255,c.g*shade)|0},${Math.min(255,c.b*shade)|0})`;
+      ctx.fillRect(x*cellW, z*cellW, cellW, cellW);
+      if(paintMap[x+','+z]!==undefined){
+        ctx.strokeStyle = 'rgba(255,255,255,0.5)';
+        ctx.lineWidth = 1;
+        ctx.strokeRect(x*cellW+0.5, z*cellW+0.5, cellW-1, cellW-1);
+      }
+    }
+  }
+
+  // paint mode cursor overlay
+  if(paintMode){
+    ctx.strokeStyle = 'rgba(255,255,255,0.15)';
+    ctx.lineWidth = 0.5;
+    for(let z=0;z<p.gridD;z++) for(let x=0;x<p.gridW;x++){
+      ctx.strokeRect(x*cellW, z*cellW, cellW, cellW);
+    }
+  }
+
+  document.getElementById('statusTiles').textContent = `Tiles: ${p.gridW * p.gridD}`;
+  document.getElementById('statusMsg').textContent = 'Preview updated';
+  document.getElementById('statusMsg').className = 'ok';
+
+  // store cellW for paint click
+  canvas._cellW = cellW;
+}
+
+// ─────────── PAINT EVENTS ───────────
+let isPainting = false;
+
+document.getElementById('previewCanvas').addEventListener('mousedown', e=>{ if(!paintMode) return; isPainting=true; paintAt(e); });
+document.getElementById('previewCanvas').addEventListener('mousemove', e=>{ if(!paintMode || !isPainting) return; paintAt(e); });
+document.addEventListener('mouseup', ()=>{ isPainting=false; });
+
+function paintAt(e){
+  const canvas = document.getElementById('previewCanvas');
+  const rect = canvas.getBoundingClientRect();
+  const cellW = canvas._cellW || 16;
+  const scaleX = canvas.width / rect.width;
+  const scaleZ = canvas.height / rect.height;
+  const cx = Math.floor((e.clientX - rect.left) * scaleX / cellW);
+  const cz = Math.floor((e.clientY - rect.top) * scaleZ / cellW);
+  const p = getParams();
+  if(cx>=0&&cx<p.gridW&&cz>=0&&cz<p.gridD){
+    const key = cx+','+cz;
+    if(paintMap[key]===activePaint) return; // no redraw needed
+    paintMap[key] = activePaint;
+    drawPreview();
+    const cnt = Object.keys(paintMap).length;
+    document.getElementById('statusPaint').textContent = `Painted: ${cnt} tile${cnt!==1?'s':''}`;
+  }
+}
+
+// ─────────── GENERATE COMMANDS ───────────
+function generate(){
+  const p = getParams();
+  const map = buildHeightMap(p);
+
+  showProgress(true, 'Building commands…', 0);
+
+  // defer so browser can paint progress
+  setTimeout(()=>{
+    const lines = [];
+    const total = p.gridW * p.gridD;
+    let idx = 0;
+    let lastCounter = 1;
+
+    for(let z=0;z<p.gridD;z++){
+      for(let x=0;x<p.gridW;x++){
+        const n = map[z][x];
+        const c = tileColor(n, p.waterLevel, x, z);
+        const height = Math.max(1, Math.round(n * p.maxHeight));
+        const ts = p.tileSize;
+
+        // determine shape
+        const nx = x<p.gridW-1 ? map[z][x+1] : n;
+        const nz = z<p.gridD-1 ? map[z+1][x] : n;
+        const hRight = Math.max(1, Math.round(nx * p.maxHeight));
+        const hFront = Math.max(1, Math.round(nz * p.maxHeight));
+        const diffR = hRight - height;
+        const diffF = hFront - height;
+
+        let type = 'part';
+        let rY = 0;
+        if(Math.abs(diffR) >= 2 && Math.abs(diffR) > Math.abs(diffF)){
+          type = 'wedge';
+          rY = diffR > 0 ? 0 : 180;
+        } else if(Math.abs(diffF) >= 2){
+          type = 'wedge';
+          rY = diffF > 0 ? 270 : 90;
+        }
+
+        const name = `t_${x}_${z}`;
+        const pX = x * ts;
+        const pY = height;
+        const pZ = z * ts;
+
+        // size: make wedge thin on top
+        const sX = ts + (Math.random()*0.4 - 0.2); // slight organic variation
+        const sZ = ts + (Math.random()*0.4 - 0.2);
+        const sY = type==='wedge' ? 0.2 : Math.max(0.5, height);
+
+        lines.push(`create ${p.worldId} ${type} ${pX} ${pY} ${pZ}`);
+        lines.push(`rename ${p.worldId} % ${name}`);
+        lines.push(`size ${p.worldId} %${name} ${sX.toFixed(2)} ${sY.toFixed(2)} ${sZ.toFixed(2)}`);
+        lines.push(`move ${p.worldId} %${name} ${pX} ${pY} ${pZ} 0 ${rY} 0`);
+        lines.push(`color ${p.worldId} %${name} ${c.r} ${c.g} ${c.b}`);
+        lines.push(`material ${p.worldId} %${name} ${matName(c.mat)}`);
+
+        idx++;
+      }
+    }
+
+    const output = lines.join('\n');
+    document.getElementById('outputBox').value = output;
+    const cmdCount = lines.filter(l=>l.trim()!=='').length;
+    document.getElementById('cmdCount').textContent = cmdCount;
+    document.getElementById('partCount').textContent = total;
+    document.getElementById('statusMsg').textContent = `✓ Generated ${total} parts, ${cmdCount} commands`;
+    document.getElementById('statusMsg').className = 'ok';
+    showProgress(false);
+
+    // switch to output tab
+    switchView('output', document.querySelectorAll('.view-tab')[1]);
+  }, 30);
+}
+
+function matName(key){
+  return PAINT_MAT_NAMES[key] || 'BRM5/rock_cliff';
+}
+
+function showProgress(visible, label='', pct=0){
+  const w = document.getElementById('progressWrap');
+  w.classList.toggle('visible', visible);
+  document.getElementById('progressLabel').textContent = label;
+  document.getElementById('progressFill').style.width = pct+'%';
+}
+
+function copyOutput(){
+  const ta = document.getElementById('outputBox');
+  navigator.clipboard.writeText(ta.value).then(()=>{
+    document.getElementById('statusMsg').textContent = '📋 Copied to clipboard!';
+  });
+}
+
+function downloadOutput(){
+  const text = document.getElementById('outputBox').value;
+  if(!text.trim()){ alert('Generate first!'); return; }
+  const blob = new Blob([text], {type:'text/plain'});
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'terrain_commands.txt';
+  a.click();
+}
+
+function switchView(name, el){
+  document.querySelectorAll('.view-tab').forEach(t=>t.classList.remove('active'));
+  document.querySelectorAll('.view-content').forEach(v=>v.classList.remove('active'));
+  el.classList.add('active');
+  document.getElementById('view-'+name).classList.add('active');
+  if(name==='preview') setTimeout(drawPreview, 10);
+}
+
+// ─────────── INIT ───────────
+initSwatches();
+window.addEventListener('resize', drawPreview);
+setTimeout(drawPreview, 100);
+</script>
+</body>
+</html>

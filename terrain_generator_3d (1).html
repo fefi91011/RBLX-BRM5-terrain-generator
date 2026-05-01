@@ -1,0 +1,612 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<title>Terrain Generator 3D</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700&family=Syne:wght@700;800&display=swap');
+  :root {
+    --bg:#0e0f14; --panel:#15171f; --panel2:#1c1f2b; --border:#2a2d3e;
+    --accent:#4fffb0; --accent2:#7c6fff; --accent3:#ff6f6f;
+    --text:#e2e4f0; --muted:#6b6f8a;
+  }
+  *{box-sizing:border-box;margin:0;padding:0;}
+  body{background:var(--bg);color:var(--text);font-family:'JetBrains Mono',monospace;font-size:13px;height:100vh;display:flex;flex-direction:column;overflow:hidden;}
+  header{padding:10px 18px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:14px;background:var(--panel);flex-shrink:0;}
+  header h1{font-family:'Syne',sans-serif;font-size:17px;font-weight:800;color:var(--accent);}
+  .main{display:flex;flex:1;overflow:hidden;}
+
+  /* SIDEBAR */
+  .sidebar{width:260px;flex-shrink:0;background:var(--panel);border-right:1px solid var(--border);overflow-y:auto;display:flex;flex-direction:column;}
+  .section{border-bottom:1px solid var(--border);padding:12px 14px;}
+  .sec-title{font-size:9px;font-weight:700;letter-spacing:2px;text-transform:uppercase;color:var(--muted);margin-bottom:10px;}
+  .field{margin-bottom:8px;}
+  .field label{display:flex;justify-content:space-between;margin-bottom:3px;color:var(--muted);font-size:11px;}
+  .field label span{color:var(--accent);font-weight:600;}
+  input[type=range]{width:100%;height:4px;appearance:none;background:var(--border);border-radius:2px;outline:none;cursor:pointer;}
+  input[type=range]::-webkit-slider-thumb{appearance:none;width:13px;height:13px;border-radius:50%;background:var(--accent);box-shadow:0 0 6px rgba(79,255,176,0.5);}
+  .toggle-row{display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;}
+  .toggle-label{color:var(--muted);font-size:11px;}
+  .toggle{position:relative;width:34px;height:18px;}
+  .toggle input{display:none;}
+  .toggle .sl{position:absolute;inset:0;background:var(--border);border-radius:9px;cursor:pointer;transition:.2s;}
+  .toggle .sl::after{content:'';position:absolute;width:12px;height:12px;left:3px;top:3px;background:var(--muted);border-radius:50%;transition:.2s;}
+  .toggle input:checked+.sl{background:rgba(79,255,176,.3);}
+  .toggle input:checked+.sl::after{transform:translateX(16px);background:var(--accent);}
+  .biome-grid{display:grid;grid-template-columns:1fr 1fr;gap:5px;}
+  .biome-btn{padding:5px;border-radius:5px;border:1px solid var(--border);background:var(--panel2);color:var(--muted);cursor:pointer;text-align:center;font-family:'JetBrains Mono',monospace;font-size:11px;transition:.15s;}
+  .biome-btn.active{border-color:var(--accent2);color:var(--accent2);background:rgba(124,111,255,.1);}
+
+  /* BRUSH MODE BUTTONS */
+  .mode-btns{display:flex;gap:5px;margin-bottom:8px;}
+  .mode-btn{flex:1;padding:6px 4px;border-radius:6px;border:1px solid var(--border);background:var(--panel2);color:var(--muted);cursor:pointer;font-family:'JetBrains Mono',monospace;font-size:11px;transition:.15s;text-align:center;}
+  .mode-btn.active{border-color:var(--accent);color:var(--accent);background:rgba(79,255,176,.08);}
+  .mode-btn.sculpt-down.active{border-color:var(--accent3);color:var(--accent3);background:rgba(255,111,111,.08);}
+  .mode-btn.paint-mode.active{border-color:var(--accent2);color:var(--accent2);background:rgba(124,111,255,.08);}
+
+  /* PAINT SWATCHES */
+  .swatches{display:flex;flex-wrap:wrap;gap:5px;margin-top:4px;}
+  .swatch{width:26px;height:26px;border-radius:5px;cursor:pointer;border:2px solid transparent;transition:.15s;}
+  .swatch.active{border-color:#fff;transform:scale(1.15);}
+
+  /* GENERATE BTN */
+  .gen-btn{margin:12px 14px;padding:9px;background:var(--accent);color:#0e0f14;border:none;border-radius:7px;font-family:'Syne',sans-serif;font-size:13px;font-weight:800;cursor:pointer;letter-spacing:1px;transition:.15s;text-transform:uppercase;}
+  .gen-btn:hover{background:#7affc8;box-shadow:0 0 18px rgba(79,255,176,.3);}
+
+  /* CENTER */
+  .center{flex:1;display:flex;flex-direction:column;overflow:hidden;position:relative;}
+  #canvas{width:100%;height:100%;display:block;cursor:crosshair;}
+
+  /* OUTPUT OVERLAY */
+  .output-panel{position:absolute;inset:0;background:rgba(14,15,20,.97);display:none;flex-direction:column;z-index:20;}
+  .output-panel.visible{display:flex;}
+  .out-toolbar{display:flex;align-items:center;gap:8px;padding:8px 14px;border-bottom:1px solid var(--border);background:var(--panel);flex-shrink:0;}
+  .out-stat{font-size:11px;color:var(--muted);margin-right:auto;}
+  .out-stat span{color:var(--accent);}
+  textarea{flex:1;background:#0a0b10;color:#9effd4;border:none;padding:14px;font-family:'JetBrains Mono',monospace;font-size:11px;resize:none;outline:none;line-height:1.7;}
+  .btn-sm{background:var(--panel2);border:1px solid var(--border);border-radius:6px;color:var(--muted);padding:5px 10px;cursor:pointer;font-family:'JetBrains Mono',monospace;font-size:12px;transition:.15s;}
+  .btn-sm:hover{border-color:var(--accent2);color:var(--accent2);}
+
+  /* HUD overlay */
+  .hud{position:absolute;bottom:10px;right:14px;font-size:11px;color:var(--muted);pointer-events:none;text-align:right;line-height:1.8;}
+  .hud b{color:var(--accent);}
+
+  /* SEED row */
+  .seed-row{display:flex;gap:6px;align-items:center;}
+  .seed-row input[type=number]{flex:1;background:var(--panel2);border:1px solid var(--border);border-radius:6px;color:var(--text);padding:4px 8px;font-family:'JetBrains Mono',monospace;font-size:12px;outline:none;}
+  .seed-row input:focus{border-color:var(--accent);}
+  ::-webkit-scrollbar{width:5px;}
+  ::-webkit-scrollbar-track{background:transparent;}
+  ::-webkit-scrollbar-thumb{background:var(--border);border-radius:3px;}
+</style>
+</head>
+<body>
+
+<header>
+  <h1>⛰ TERRAIN GEN 3D</h1>
+  <span style="color:var(--muted);font-size:11px;">WebGL · Sculpt · Paint · Export</span>
+  <div style="margin-left:auto;display:flex;gap:8px;">
+    <button class="btn-sm" onclick="toggleOutput()">📋 Output</button>
+    <button class="btn-sm" onclick="resetTerrain()">🔄 Reset</button>
+  </div>
+</header>
+
+<div class="main">
+  <div class="sidebar">
+
+    <div class="section">
+      <div class="sec-title">Grid</div>
+      <div class="field"><label>Width <span id="lw">20</span></label><input type="range" id="gridW" min="4" max="40" value="20"></div>
+      <div class="field"><label>Depth <span id="ld">20</span></label><input type="range" id="gridD" min="4" max="40" value="20"></div>
+      <div class="field"><label>Tile Size <span id="lts">4</span></label><input type="range" id="tileSize" min="2" max="12" value="4"></div>
+      <div class="field"><label>World ID <span id="lwid">1</span></label><input type="range" id="worldId" min="1" max="10" value="1" step="1"></div>
+      <div class="seed-row" style="margin-top:6px;">
+        <input type="number" id="seed" value="42" placeholder="Seed">
+        <button class="btn-sm" onclick="rndSeed()">🎲</button>
+        <button class="btn-sm" onclick="applyRegen()">▶ Gen</button>
+      </div>
+    </div>
+
+    <div class="section">
+      <div class="sec-title">Noise</div>
+      <div class="field"><label>Max Height <span id="lmh">16</span></label><input type="range" id="maxH" min="2" max="64" value="16"></div>
+      <div class="field"><label>Scale <span id="lsc">0.10</span></label><input type="range" id="noiseScale" min="2" max="30" value="10"></div>
+      <div class="field"><label>Octaves <span id="loc">4</span></label><input type="range" id="octaves" min="1" max="8" value="4"></div>
+      <div class="field"><label>Persistence <span id="lpe">0.50</span></label><input type="range" id="persistence" min="10" max="90" value="50"></div>
+      <div class="field"><label>Water Level <span id="lwl">0.25</span></label><input type="range" id="waterLevel" min="0" max="60" value="25"></div>
+      <div class="toggle-row"><span class="toggle-label">Mountains</span><label class="toggle"><input type="checkbox" id="mountains" checked><span class="sl"></span></label></div>
+    </div>
+
+    <div class="section">
+      <div class="sec-title">Biome</div>
+      <div class="biome-grid">
+        <div class="biome-btn active" onclick="biome(this,'plains')">🌿 Plains</div>
+        <div class="biome-btn" onclick="biome(this,'mountains')">🏔 Mountains</div>
+        <div class="biome-btn" onclick="biome(this,'desert')">🏜 Desert</div>
+        <div class="biome-btn" onclick="biome(this,'island')">🏝 Island</div>
+        <div class="biome-btn" onclick="biome(this,'canyon')">🪨 Canyon</div>
+      </div>
+    </div>
+
+    <div class="section">
+      <div class="sec-title">Brush</div>
+      <div class="mode-btns">
+        <div class="mode-btn active" id="btn_up" onclick="setMode('up')">▲ Raise</div>
+        <div class="mode-btn sculpt-down" id="btn_down" onclick="setMode('down')">▼ Lower</div>
+        <div class="mode-btn paint-mode" id="btn_paint" onclick="setMode('paint')">🎨 Paint</div>
+      </div>
+      <div class="field"><label>Radius <span id="lbr">2.0</span></label><input type="range" id="brushR" min="5" max="80" value="20"></div>
+      <div class="field"><label>Strength <span id="lbs">0.02</span></label><input type="range" id="brushS" min="1" max="50" value="10"></div>
+      <div class="sec-title" style="margin-top:8px;">Paint Material</div>
+      <div class="swatches" id="swatches"></div>
+    </div>
+
+    <button class="gen-btn" onclick="generateCommands()">▶ Generate Commands</button>
+  </div>
+
+  <div class="center">
+    <canvas id="canvas"></canvas>
+
+    <div class="hud">
+      <b>RMB</b> Rotate &nbsp; <b>Scroll</b> Zoom &nbsp; <b>MMB</b> Pan<br>
+      <b>LMB</b> Sculpt/Paint &nbsp; <b>TAB</b> Toggle Mode
+    </div>
+
+    <div class="output-panel" id="outputPanel">
+      <div class="out-toolbar">
+        <span class="out-stat">Parts: <span id="partCnt">0</span> &nbsp; Commands: <span id="cmdCnt">0</span></span>
+        <button class="btn-sm" onclick="copyOut()">📋 Copy</button>
+        <button class="btn-sm" onclick="dlOut()">💾 Save</button>
+        <button class="btn-sm" onclick="toggleOutput()">✕ Close</button>
+      </div>
+      <textarea id="outputBox" readonly></textarea>
+    </div>
+  </div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+// ═══════════════════════════════
+// PERLIN NOISE
+// ═══════════════════════════════
+let perm = new Array(512);
+function seedNoise(s) {
+  const p = Array.from({length:256},(_,i)=>i);
+  let r = s|0;
+  const rng = ()=>{ r=(1664525*r+1013904223)&0xffffffff; return (r>>>0)/0xffffffff; };
+  for(let i=255;i>0;i--){const j=Math.floor(rng()*(i+1));[p[i],p[j]]=[p[j],p[i]];}
+  for(let i=0;i<512;i++) perm[i]=p[i&255];
+}
+function fade(t){return t*t*t*(t*(t*6-15)+10);}
+function lerp(a,b,t){return a+t*(b-a);}
+function grad2(h,x,y){h&=3;const u=h<2?x:y,v=h<2?y:x;return((h&1)?-u:u)+((h&2)?-v:v);}
+function perlin(x,y){
+  const X=Math.floor(x)&255,Y=Math.floor(y)&255;
+  const xf=x-Math.floor(x),yf=y-Math.floor(y);
+  const u=fade(xf),v=fade(yf);
+  const aa=perm[perm[X]+Y],ab=perm[perm[X]+Y+1],ba=perm[perm[X+1]+Y],bb=perm[perm[X+1]+Y+1];
+  return lerp(lerp(grad2(aa,xf,yf),grad2(ba,xf-1,yf),u),lerp(grad2(ab,xf,yf-1),grad2(bb,xf-1,yf-1),u),v);
+}
+function octNoise(x,y,octs,pers){
+  let val=0,amp=1,freq=1,mx=0;
+  for(let i=0;i<octs;i++){val+=perlin(x*freq,y*freq)*amp;mx+=amp;amp*=pers;freq*=2;}
+  return val/mx;
+}
+
+// ═══════════════════════════════
+// MATERIALS
+// ═══════════════════════════════
+const MATS = [
+  {name:'Grass', mat:'RBLX/Grass',       rgb:[80,160,60]},
+  {name:'Snow',  mat:'RBLX/Snow',        rgb:[220,235,255]},
+  {name:'Sand',  mat:'RBLX/Sand',        rgb:[210,185,120]},
+  {name:'Rock',  mat:'BRM5/rock_cliff',  rgb:[130,120,110]},
+  {name:'Water', mat:'RBLX/Water',       rgb:[40,120,200]},
+  {name:'Lava',  mat:'RBLX/CrackedLava', rgb:[220,80,20]},
+  {name:'Mud',   mat:'BRM5/mud_tropical',rgb:[100,70,50]},
+  {name:'Ice',   mat:'RBLX/Ice',         rgb:[160,215,240]},
+  {name:'Dirt',  mat:'RBLX/Ground',      rgb:[120,90,60]},
+  {name:'Gravel',mat:'BRM5/pebble_gravel1',rgb:[150,145,140]},
+];
+function autoMat(n, wl){
+  if(n<wl*0.5) return 4; // Water
+  if(n<0.30) return 2;   // Sand
+  if(n<0.52) return 0;   // Grass
+  if(n<0.70) return 8;   // Dirt
+  if(n<0.82) return 3;   // Rock
+  if(n<0.92) return 9;   // Gravel
+  return 1;              // Snow
+}
+
+const BIOMES = {
+  plains:    {maxH:8,  scale:8,  oct:3, pers:40, mtn:false, water:20},
+  mountains: {maxH:40, scale:12, oct:6, pers:55, mtn:true,  water:15},
+  desert:    {maxH:10, scale:6,  oct:2, pers:35, mtn:false, water:5},
+  island:    {maxH:20, scale:14, oct:4, pers:50, mtn:true,  water:40},
+  canyon:    {maxH:30, scale:9,  oct:5, pers:65, mtn:true,  water:10},
+};
+
+// ═══════════════════════════════
+// TERRAIN STATE
+// ═══════════════════════════════
+let gw=20, gd=20, tileSize=4, maxH=16, worldId=1, waterLevel=0.25;
+let heights, paintMap;
+function initArrays(){
+  heights = new Float32Array(gw*gd);
+  paintMap = new Int8Array(gw*gd).fill(-1);
+}
+initArrays();
+
+function hi(x,z){return z*gw+x;}
+function getH(x,z){return Math.max(1, Math.round(heights[hi(x,z)]*maxH));}
+function getMat(x,z){const p=paintMap[hi(x,z)]; return p>=0?p:autoMat(heights[hi(x,z)],waterLevel);}
+
+function generateHeightMap(){
+  const scale = +document.getElementById('noiseScale').value/100;
+  const octs  = +document.getElementById('octaves').value;
+  const pers  = +document.getElementById('persistence').value/100;
+  const seed  = +document.getElementById('seed').value||42;
+  const mtn   = document.getElementById('mountains').checked;
+  const wl    = +document.getElementById('waterLevel').value/100;
+  waterLevel  = wl;
+  seedNoise(seed);
+  for(let z=0;z<gd;z++) for(let x=0;x<gw;x++){
+    let n = octNoise(x*scale, z*scale, octs, pers);
+    n=(n+1)/2;
+    if(mtn) n=Math.pow(n,0.7);
+    if(n<wl) n=wl*0.5;
+    heights[hi(x,z)]=n;
+  }
+}
+
+// ═══════════════════════════════
+// THREE.JS SCENE
+// ═══════════════════════════════
+const canvas = document.getElementById('canvas');
+const renderer = new THREE.WebGLRenderer({canvas, antialias:true});
+renderer.setPixelRatio(devicePixelRatio);
+renderer.shadowMap.enabled = true;
+
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x0e0f14);
+scene.fog = new THREE.Fog(0x0e0f14, 80, 260);
+
+const camera = new THREE.PerspectiveCamera(50, 1, 0.1, 500);
+camera.position.set(40, 50, 80);
+camera.lookAt(0, 0, 0);
+
+// Lighting
+const amb = new THREE.AmbientLight(0x334466, 0.8);
+scene.add(amb);
+const sun = new THREE.DirectionalLight(0xffeedd, 1.2);
+sun.position.set(50, 80, 30);
+sun.castShadow = true;
+scene.add(sun);
+const fill = new THREE.DirectionalLight(0x4488ff, 0.3);
+fill.position.set(-40, 20, -40);
+scene.add(fill);
+
+// terrain mesh group
+let terrainGroup = new THREE.Group();
+scene.add(terrainGroup);
+
+// brush indicator
+const brushGeo = new THREE.CylinderGeometry(1, 1, 0.3, 32, 1, true);
+const brushMat = new THREE.MeshBasicMaterial({color:0x4fffb0, transparent:true, opacity:0.35, side:THREE.DoubleSide});
+const brushMesh = new THREE.Mesh(brushGeo, brushMat);
+brushMesh.visible = false;
+scene.add(brushMesh);
+
+// ground plane for raycasting
+const groundGeo = new THREE.PlaneGeometry(500, 500);
+const groundMat = new THREE.MeshBasicMaterial({visible:false, side:THREE.DoubleSide});
+const ground = new THREE.Mesh(groundGeo, groundMat);
+ground.rotation.x = -Math.PI/2;
+scene.add(ground);
+
+function buildTerrainMesh(){
+  terrainGroup.clear();
+  const ts = tileSize;
+  const cx = (gw * ts)/2, cz = (gd * ts)/2;
+
+  for(let z=0;z<gd;z++) for(let x=0;x<gw;x++){
+    const h = getH(x,z);
+    const mi = getMat(x,z);
+    const [r,g,b] = MATS[mi].rgb;
+    const color = new THREE.Color(r/255, g/255, b/255);
+
+    // slope shading
+    const hn = z>0 ? getH(x,z-1) : h;
+    const brightness = 0.7 + Math.max(0, Math.min(0.5, (h-hn)/maxH * 2));
+    color.multiplyScalar(brightness);
+
+    const geo = new THREE.BoxGeometry(ts*0.97, h, ts*0.97);
+    const mat = new THREE.MeshLambertMaterial({color});
+    const mesh = new THREE.Mesh(geo, mat);
+    mesh.position.set(x*ts - cx + ts/2, h/2, z*ts - cz + ts/2);
+    mesh.castShadow = true;
+    mesh.receiveShadow = true;
+    mesh.userData = {x, z};
+    terrainGroup.add(mesh);
+  }
+}
+
+// ═══════════════════════════════
+// CAMERA CONTROLS
+// ═══════════════════════════════
+let camTheta = 0.6, camPhi = 0.8, camDist = 90;
+let camTarget = new THREE.Vector3(0, 0, 0);
+let rotating=false, panning=false, lastMouse={x:0,y:0};
+
+function updateCamera(){
+  camera.position.x = camTarget.x + camDist*Math.sin(camPhi)*Math.sin(camTheta);
+  camera.position.y = camTarget.y + camDist*Math.cos(camPhi);
+  camera.position.z = camTarget.z + camDist*Math.sin(camPhi)*Math.cos(camTheta);
+  camera.lookAt(camTarget);
+}
+updateCamera();
+
+// ═══════════════════════════════
+// RAYCASTING / BRUSH
+// ═══════════════════════════════
+const raycaster = new THREE.Raycaster();
+let brushMode = 'up';
+let brushR = 2.0, brushS = 0.02;
+let activePaint = 0;
+let mousePos = new THREE.Vector2();
+let hoveredTile = null;
+
+function getBrushR(){ return +document.getElementById('brushR').value/10; }
+function getBrushS(){ return +document.getElementById('brushS').value/500; }
+
+function getTileUnderMouse(mx, my){
+  const rect = canvas.getBoundingClientRect();
+  mousePos.x = ((mx-rect.left)/rect.width)*2-1;
+  mousePos.y = -((my-rect.top)/rect.height)*2+1;
+  raycaster.setFromCamera(mousePos, camera);
+  const hits = raycaster.intersectObjects(terrainGroup.children);
+  if(hits.length) return hits[0].object.userData;
+  // fallback: intersect ground
+  const gh = raycaster.intersectObject(ground);
+  if(gh.length){
+    const p = gh[0].point;
+    const cx = (gw*tileSize)/2, cz2 = (gd*tileSize)/2;
+    const tx = Math.floor((p.x+cx)/tileSize);
+    const tz = Math.floor((p.z+cz2)/tileSize);
+    if(tx>=0&&tx<gw&&tz>=0&&tz<gd) return {x:tx,z:tz};
+  }
+  return null;
+}
+
+function applyBrush(cx, cz){
+  const r = getBrushR();
+  const s = getBrushS();
+  let changed = false;
+  for(let z=0;z<gd;z++) for(let x=0;x<gw;x++){
+    const dx=x-cx, dz=z-cz, dist=Math.sqrt(dx*dx+dz*dz);
+    if(dist<=r){
+      const falloff = 1-(dist/r)**2;
+      if(brushMode==='up'||brushMode==='down'){
+        const dir = brushMode==='up'?1:-1;
+        heights[hi(x,z)] = Math.max(0, Math.min(1, heights[hi(x,z)]+s*falloff*dir));
+      } else {
+        paintMap[hi(x,z)] = activePaint;
+      }
+      changed = true;
+    }
+  }
+  if(changed) buildTerrainMesh();
+}
+
+// ═══════════════════════════════
+// INPUT
+// ═══════════════════════════════
+let painting = false;
+
+canvas.addEventListener('mousedown', e=>{
+  if(e.button===0){ painting=true; }
+  if(e.button===2){ rotating=true; lastMouse={x:e.clientX,y:e.clientY}; }
+  if(e.button===1){ panning=true; lastMouse={x:e.clientX,y:e.clientY}; e.preventDefault(); }
+});
+canvas.addEventListener('contextmenu', e=>e.preventDefault());
+
+window.addEventListener('mouseup', e=>{
+  if(e.button===0) painting=false;
+  if(e.button===2) rotating=false;
+  if(e.button===1) panning=false;
+});
+
+window.addEventListener('mousemove', e=>{
+  if(rotating){
+    const dx=e.clientX-lastMouse.x, dy=e.clientY-lastMouse.y;
+    camTheta -= dx*0.005;
+    camPhi = Math.max(0.1, Math.min(Math.PI*0.48, camPhi+dy*0.005));
+    lastMouse={x:e.clientX,y:e.clientY};
+    updateCamera();
+  }
+  if(panning){
+    const dx=e.clientX-lastMouse.x, dy=e.clientY-lastMouse.y;
+    const right = new THREE.Vector3().crossVectors(camera.position.clone().sub(camTarget), new THREE.Vector3(0,1,0)).normalize();
+    const up2 = new THREE.Vector3(0,1,0);
+    camTarget.addScaledVector(right, -dx*0.05);
+    camTarget.addScaledVector(up2, dy*0.05);
+    lastMouse={x:e.clientX,y:e.clientY};
+    updateCamera();
+  }
+
+  // brush hover
+  const tile = getTileUnderMouse(e.clientX, e.clientY);
+  if(tile){
+    hoveredTile = tile;
+    const r = getBrushR();
+    const cx2 = (gw*tileSize)/2, cz2 = (gd*tileSize)/2;
+    const wx = tile.x*tileSize - cx2 + tileSize/2;
+    const wz = tile.z*tileSize - cz2 + tileSize/2;
+    const wy = getH(tile.x, tile.z);
+    brushMesh.position.set(wx, wy+0.1, wz);
+    brushMesh.geometry.dispose();
+    brushMesh.geometry = new THREE.CylinderGeometry(r*tileSize, r*tileSize, 0.4, 32, 1, true);
+    const mc = brushMode==='up'?0x4fffb0:brushMode==='down'?0xff6f6f:0x7c6fff;
+    brushMesh.material.color.set(mc);
+    brushMesh.visible = true;
+    if(painting) applyBrush(tile.x, tile.z);
+  } else {
+    brushMesh.visible = false;
+  }
+});
+
+canvas.addEventListener('wheel', e=>{
+  camDist = Math.max(15, Math.min(200, camDist+e.deltaY*0.08));
+  updateCamera();
+  e.preventDefault();
+}, {passive:false});
+
+document.addEventListener('keydown', e=>{
+  if(e.key==='Tab'){e.preventDefault(); const m=['up','down','paint']; setMode(m[(m.indexOf(brushMode)+1)%3]);}
+});
+
+// ═══════════════════════════════
+// UI WIRING
+// ═══════════════════════════════
+function wire(id, lbl, fmt){
+  const el=document.getElementById(id);
+  const lb=document.getElementById(lbl);
+  el.addEventListener('input',()=>lb.textContent=fmt?fmt(el.value):el.value);
+  lb.textContent=fmt?fmt(el.value):el.value;
+}
+wire('gridW','lw'); wire('gridD','ld'); wire('tileSize','lts');
+wire('worldId','lwid'); wire('maxH','lmh');
+wire('noiseScale','lsc', v=>(v/100).toFixed(2));
+wire('octaves','loc'); wire('persistence','lpe', v=>(v/100).toFixed(2));
+wire('waterLevel','lwl', v=>(v/100).toFixed(2));
+wire('brushR','lbr', v=>(v/10).toFixed(1));
+wire('brushS','lbs', v=>(v/500).toFixed(3));
+
+function rndSeed(){ document.getElementById('seed').value=Math.floor(Math.random()*99999); }
+
+function applyRegen(){
+  gw = +document.getElementById('gridW').value;
+  gd = +document.getElementById('gridD').value;
+  tileSize = +document.getElementById('tileSize').value;
+  maxH = +document.getElementById('maxH').value;
+  worldId = +document.getElementById('worldId').value;
+  initArrays();
+  generateHeightMap();
+  buildTerrainMesh();
+  camTarget.set(0,0,0);
+  updateCamera();
+}
+
+function resetTerrain(){ applyRegen(); }
+
+function biome(el, key){
+  document.querySelectorAll('.biome-btn').forEach(b=>b.classList.remove('active'));
+  el.classList.add('active');
+  const b=BIOMES[key];
+  document.getElementById('maxH').value=b.maxH; document.getElementById('lmh').textContent=b.maxH;
+  document.getElementById('noiseScale').value=b.scale; document.getElementById('lsc').textContent=(b.scale/100).toFixed(2);
+  document.getElementById('octaves').value=b.oct; document.getElementById('loc').textContent=b.oct;
+  document.getElementById('persistence').value=b.pers; document.getElementById('lpe').textContent=(b.pers/100).toFixed(2);
+  document.getElementById('waterLevel').value=b.water; document.getElementById('lwl').textContent=(b.water/100).toFixed(2);
+  document.getElementById('mountains').checked=b.mtn;
+}
+
+function setMode(m){
+  brushMode=m;
+  document.querySelectorAll('.mode-btn').forEach(b=>b.classList.remove('active'));
+  const map={up:'btn_up',down:'btn_down',paint:'btn_paint'};
+  document.getElementById(map[m]).classList.add('active');
+}
+
+// swatches
+function buildSwatches(){
+  const wrap=document.getElementById('swatches');
+  MATS.forEach((m,i)=>{
+    const s=document.createElement('div');
+    s.className='swatch'+(i===0?' active':'');
+    s.style.background=`rgb(${m.rgb.join(',')})`;
+    s.title=m.name;
+    s.onclick=()=>{
+      activePaint=i; brushMode='paint'; setMode('paint');
+      document.querySelectorAll('.swatch').forEach((x,j)=>x.classList.toggle('active',j===i));
+    };
+    wrap.appendChild(s);
+  });
+}
+buildSwatches();
+
+// ═══════════════════════════════
+// COMMAND GENERATION
+// ═══════════════════════════════
+function generateCommands(){
+  const lines=[];
+  const ts=tileSize, wid=worldId;
+  for(let z=0;z<gd;z++) for(let x=0;x<gw;x++){
+    const n=heights[hi(x,z)];
+    const h=Math.max(1,Math.round(n*maxH));
+    const mi=getMat(x,z);
+    const {mat,rgb}=MATS[mi];
+    const [r,g,b]=rgb;
+    const nx2=x<gw-1?heights[hi(x+1,z)]:n;
+    const nz2=z<gd-1?heights[hi(x,z+1)]:n;
+    const hr=Math.max(1,Math.round(nx2*maxH)), hf=Math.max(1,Math.round(nz2*maxH));
+    const dr=hr-h, df=hf-h;
+    let shape='part', ry=0;
+    if(Math.abs(dr)>=2&&Math.abs(dr)>Math.abs(df)){shape='wedge';ry=dr>0?0:180;}
+    else if(Math.abs(df)>=2){shape='wedge';ry=df>0?270:90;}
+    const sx=(ts+(Math.random()*.4-.2)).toFixed(2);
+    const sz2=(ts+(Math.random()*.4-.2)).toFixed(2);
+    const sy=shape==='wedge'?'0.20':Math.max(0.5,h).toFixed(2);
+    const px=x*ts, py=h, pz=z*ts;
+    const name=`t_${x}_${z}`;
+    lines.push(`create ${wid} ${shape} ${px} ${py} ${pz}`);
+    lines.push(`rename ${wid} % ${name}`);
+    lines.push(`size ${wid} %${name} ${sx} ${sy} ${sz2}`);
+    lines.push(`move ${wid} %${name} ${px} ${py} ${pz} 0 ${ry} 0`);
+    lines.push(`color ${wid} %${name} ${r} ${g} ${b}`);
+    lines.push(`material ${wid} %${name} ${mat}`);
+  }
+  const out=lines.join('\n');
+  document.getElementById('outputBox').value=out;
+  document.getElementById('partCnt').textContent=gw*gd;
+  document.getElementById('cmdCnt').textContent=lines.filter(l=>l.trim()).length;
+  document.getElementById('outputPanel').classList.add('visible');
+}
+
+function toggleOutput(){
+  document.getElementById('outputPanel').classList.toggle('visible');
+}
+function copyOut(){
+  navigator.clipboard.writeText(document.getElementById('outputBox').value);
+}
+function dlOut(){
+  const txt=document.getElementById('outputBox').value;
+  if(!txt.trim()) return;
+  const a=document.createElement('a');
+  a.href=URL.createObjectURL(new Blob([txt],{type:'text/plain'}));
+  a.download='terrain_commands.txt'; a.click();
+}
+
+// ═══════════════════════════════
+// RESIZE + RENDER LOOP
+// ═══════════════════════════════
+function resize(){
+  const w=canvas.clientWidth, h=canvas.clientHeight;
+  renderer.setSize(w,h,false);
+  camera.aspect=w/h; camera.updateProjectionMatrix();
+}
+new ResizeObserver(resize).observe(canvas);
+resize();
+
+function animate(){
+  requestAnimationFrame(animate);
+  renderer.render(scene,camera);
+}
+
+// init
+generateHeightMap();
+buildTerrainMesh();
+animate();
+</script>
+</body>
+</html>
