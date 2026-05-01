@@ -560,11 +560,10 @@ function generateCommands(){
     const px=x*ts, py=h, pz=z*ts;
     const name=`t_${x}_${z}`;
     lines.push(`create ${wid} ${shape} ${px} ${py} ${pz}`);
-    lines.push(`rename ${wid} % ${name}`);
-    lines.push(`size ${wid} %${name} ${sx} ${sy} ${sz2}`);
-    lines.push(`move ${wid} %${name} ${px} ${py} ${pz} 0 ${ry} 0`);
-    lines.push(`color ${wid} %${name} ${r} ${g} ${b}`);
-    lines.push(`material ${wid} %${name} ${mat}`);
+    lines.push(`size ${wid} % ${sx} ${sy} ${sz2}`);
+    lines.push(`move ${wid} % ${px} ${py} ${pz} 0 ${ry} 0`);
+    lines.push(`color ${wid} % ${r} ${g} ${b}`);
+    lines.push(`material ${wid} % ${mat}`);
   }
   const out=lines.join('\n');
   document.getElementById('outputBox').value=out;
