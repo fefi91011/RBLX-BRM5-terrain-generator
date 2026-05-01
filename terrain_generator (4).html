@@ -896,11 +896,10 @@ function generate(){
         const sY = type==='wedge' ? 0.2 : Math.max(0.5, height);
 
         lines.push(`create ${p.worldId} ${type} ${pX} ${pY} ${pZ}`);
-        lines.push(`rename ${p.worldId} % ${name}`);
-        lines.push(`size ${p.worldId} %${name} ${sX.toFixed(2)} ${sY.toFixed(2)} ${sZ.toFixed(2)}`);
-        lines.push(`move ${p.worldId} %${name} ${pX} ${pY} ${pZ} 0 ${rY} 0`);
-        lines.push(`color ${p.worldId} %${name} ${c.r} ${c.g} ${c.b}`);
-        lines.push(`material ${p.worldId} %${name} ${matName(c.mat)}`);
+        lines.push(`size ${p.worldId} % ${sX.toFixed(2)} ${sY.toFixed(2)} ${sZ.toFixed(2)}`);
+        lines.push(`move ${p.worldId} % ${pX} ${pY} ${pZ} 0 ${rY} 0`);
+        lines.push(`color ${p.worldId} % ${c.r} ${c.g} ${c.b}`);
+        lines.push(`material ${p.worldId} % ${matName(c.mat)}`);
 
         idx++;
       }
