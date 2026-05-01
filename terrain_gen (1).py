@@ -171,11 +171,10 @@ class Terrain:
                 name = f't_{x}_{z}'
 
                 lines.append(f'create {wid} {shape} {px} {py} {pz}')
-                lines.append(f'rename {wid} % {name}')
-                lines.append(f'size {wid} %{name} {sx} {sy} {sz_}')
-                lines.append(f'move {wid} %{name} {px} {py} {pz} 0 {ry} 0')
-                lines.append(f'color {wid} %{name} {r} {g} {b}')
-                lines.append(f'material {wid} %{name} {mat_name}')
+                lines.append(f'size {wid} % {sx} {sy} {sz_}')
+                lines.append(f'move {wid} % {px} {py} {pz} 0 {ry} 0')
+                lines.append(f'color {wid} % {r} {g} {b}')
+                lines.append(f'material {wid} % {mat_name}')
         return '\n'.join(lines)
 
 # ═══════════════════════════════════════════════
