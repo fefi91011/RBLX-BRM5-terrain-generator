@@ -325,7 +325,7 @@ function buildTerrainMesh(){
   geo.setAttribute('position',new THREE.Float32BufferAttribute(pos,3));
   geo.setAttribute('color',new THREE.Float32BufferAttribute(col,3));
   geo.setIndex(idx); geo.computeVertexNormals();
-  terrainMesh=new THREE.Mesh(geo,new THREE.MeshLambertMaterial({vertexColors:true}));
+  terrainMesh=new THREE.Mesh(geo,new THREE.MeshLambertMaterial({vertexColors:true,side:THREE.DoubleSide}));
   terrainMesh.castShadow=true; terrainMesh.receiveShadow=true;
   scene.add(terrainMesh);
   const wl=waterLevel*maxH*0.9;
@@ -470,7 +470,7 @@ function draw2D(){
   const sx=wx=>ox+wx*sc, sz=wz=>oz+wz*sc;
   for(let gz=0;gz<GD;gz++) for(let gx=0;gx<GW;gx++){
     const i00=vi(gx,gz),i10=vi(gx+1,gz),i01=vi(gx,gz+1),i11=vi(gx+1,gz+1);
-    for(const [a,b,c] of [[i00,i10,i01],[i10,i11,i01]]){
+    for(const [a,b,c] of [[i00,i01,i10],[i10,i01,i11]]){
       const ca=getVertColor(a),cb=getVertColor(b),cc=getVertColor(c);
       const sh=0.55+(vy[a]+vy[b]+vy[c])/3*0.7;
       const r=Math.min(255,(ca[0]+cb[0]+cc[0])/3*sh)|0;
@@ -563,33 +563,45 @@ function generateCommands(){
     const i00=vi(gx,gz),i10=vi(gx+1,gz),i01=vi(gx,gz+1),i11=vi(gx+1,gz+1);
     for(const [a,b,c] of [[i00,i10,i01],[i10,i11,i01]]){
       const h0=Math.max(0.2,vy[a]*maxH),h1=Math.max(0.2,vy[b]*maxH),h2=Math.max(0.2,vy[c]*maxH);
-      const cx=(vx[a]+vx[b]+vx[c])/3,cz2=(vz[a]+vz[b]+vz[c])/3,cy=(h0+h1+h2)/3;
-      const minH=Math.min(h0,h1,h2),maxHt=Math.max(h0,h1,h2),variance=maxHt-minH;
+
+      // world positions of triangle corners
+      const ax=vx[a],az=vz[a];
+      const bx=vx[b],bz=vz[b];
+      const cx2=vx[c],cz2=vz[c];
+
+      // center of triangle
+      const pcx=(ax+bx+cx2)/3, pcy=(h0+h1+h2)/3, pcz=(az+bz+cz2)/3;
+
+      // triangle normal (XZ components = slope direction)
+      const ux=bx-ax, uy=h1-h0, uz=bz-az;
+      const wx=cx2-ax, wy=h2-h0, wz2=cz2-az;
+      // normal = cross(u,w)
+      const nx2=uy*wz2-uz*wy;
+      const nz2=uz*wx-ux*wz2;
+      // nz2 and nx2 tell us which direction the slope faces
+
+      // map slope direction to wedge rotation:
+      // rY=0   → slope faces +Z (back)
+      // rY=90  → slope faces +X (right)
+      // rY=180 → slope faces -Z (front)
+      // rY=270 → slope faces -X (left)
+      let rY=0;
+      if(Math.abs(nz2)>=Math.abs(nx2)){
+        rY = nz2>0 ? 0 : 180;
+      } else {
+        rY = nx2>0 ? 90 : 270;
+      }
+
       const getMat=(idx)=>{if(roadV[idx])return ROAD_MATS[roadMatKey].mat;const p=paintV[idx];return p>=0?MATS[p].mat:MATS[autoMat(vy[idx],waterLevel)].mat;};
       const getRGB=(idx)=>{if(roadV[idx])return ROAD_MATS[roadMatKey].rgb;const p=paintV[idx];return p>=0?MATS[p].rgb:MATS[autoMat(vy[idx],waterLevel)].rgb;};
-      const [r,g,bl]=getRGB(a);const mat=getMat(a);
-      let shape='part',rY=0;
-      const sX=+(CS*0.97+(Math.random()*.25-.12)).toFixed(2);
-      const sZ=+(CS*0.97+(Math.random()*.25-.12)).toFixed(2);
-      let sY;
-      if(variance<0.8){shape='part';sY=+Math.max(0.3,cy).toFixed(2);}
-      else if(variance>maxH*0.22){
-        shape='corner';
-        const dAB=Math.abs(h0-h1),dBC=Math.abs(h1-h2),dAC=Math.abs(h0-h2);
-        if(dAB>=dBC&&dAB>=dAC) rY=h0>h1?180:0;
-        else if(dBC>=dAB) rY=h1>h2?90:270;
-        else rY=h0>h2?270:90;
-        sY=+Math.max(0.2,variance).toFixed(2);
-      } else {
-        shape='wedge';
-        const dAB=Math.abs(h0-h1),dBC=Math.abs(h1-h2),dAC=Math.abs(h0-h2);
-        if(dAB>=dBC&&dAB>=dAC) rY=h0>h1?180:0;
-        else if(dBC>=dAB) rY=h1>h2?90:270;
-        else rY=h0>h2?270:90;
-        sY=+Math.max(0.2,variance*.8).toFixed(2);
-      }
-      const px=+cx.toFixed(2),py=+cy.toFixed(2),pz=+cz2.toFixed(2);
-      lines.push(`create ${wid} ${shape} ${px} ${py} ${pz}`);
+      const [r,g,bl]=getRGB(a); const mat=getMat(a);
+
+      const sX=+(CS*0.97).toFixed(2);
+      const sZ=+(CS*0.97).toFixed(2);
+      const sY=0.1;
+
+      const px=+pcx.toFixed(2),py=+pcy.toFixed(2),pz=+pcz.toFixed(2);
+      lines.push(`create ${wid} wedge ${px} ${py} ${pz}`);
       lines.push(`size ${wid} % ${sX} ${sY} ${sZ}`);
       lines.push(`move ${wid} % ${px} ${py} ${pz} 0 ${rY} 0`);
       lines.push(`color ${wid} % ${r} ${g} ${bl}`);
